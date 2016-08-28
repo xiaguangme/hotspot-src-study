@@ -11,3 +11,6 @@ export PATH="/usr/lib:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/b
 
 export HOTSPOT_BUILD_JOBS=5
 export ALT_OUTPUTDIR=../build/hotspot_debug
+
+
+export DISABLE_HOTSPOT_OS_VERSION_CHECK=ok
