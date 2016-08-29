@@ -36,6 +36,7 @@
 
 # Expected/optional make variables defined on make command line:
 #  LP64=1 or ARCH_DATA_MODEL=64 for 64bit build
+LP64=1
 #
 # Expected/optional make variables or environment variables:
 #  ALT_SLASH_JAVA             Location of /java or J:

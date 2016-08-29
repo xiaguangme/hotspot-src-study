@@ -1,8 +1,8 @@
 #!/bin/bash
 export LANG=C
 
-export ALT_BOOTDIR="/usr/jdk1.7.0_79"
-export ALT_JDK_IMPORT_PATH="/usr/jdk1.7.0_79"
+export ALT_BOOTDIR="/usr/jdk1.6.0_45"
+export ALT_JDK_IMPORT_PATH="/usr/jdk1.6.0_45"
 
 export ANT_HOME="/home/simomme/002.tool/apache-ant-1.9.4"
 
