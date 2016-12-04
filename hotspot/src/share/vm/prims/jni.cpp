@@ -396,7 +396,7 @@ JNI_ENTRY(jclass, jni_FindClass(JNIEnv *env, const char *name))
 
   // Sanity check the name:  it cannot be null or larger than the maximum size
   // name we can fit in the constant pool.
-  if (name == NULL || (int)strlen(name) > Symbol::max_length()) {
+  if (name == NULL || (int)strlen(name) > Symbol::max_length()) { // 类名长度不能超过65535
     THROW_MSG_0(vmSymbols::java_lang_NoClassDefFoundError(), name);
   }
 
