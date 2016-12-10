@@ -21,7 +21,6 @@
  * questions.
  *
  */
-
 /*
  * Gamma (Hotspot internal engineering test) launcher based on 6.0u22 JDK,
  * search "GAMMA" for gamma specific changes.

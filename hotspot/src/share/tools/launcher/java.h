@@ -34,7 +34,14 @@
 #include "jli_util.h"
 
 /*
- * Pointers to the needed JNI invocation API, initialized by LoadJavaVM.
+ * Pointers to the needed JNI invocation API, initialized by LoadJavaVM.<br/>
+ * JNICALL 是一个宏 定义在 vm/jni_x86.h 文件中可以发现 <br/>
+ * 至于java.h如何关联到jni_x86.h文件的，参见 《jvm整体备忘.md》1.1 JVM如何搞定平台差异 的方式1
+ * 如果是linux或者solaris平台 JNICALL 为空 其余平台的则是 __stdcall <br/>
+ * 关于__stdcall 可以参见： msdn ,可以理解成一个关键字，用于函数返回类型和函数之间 <br/>
+ * 这样就好理解了 typedef还是定义了一个指向函数的类型GetDefaultJavaVMInitArgs_t <br/>
+ * 函数的返回值是jint ， 参数列表是void *args <br/>
+ *
  */
 typedef jint (JNICALL *CreateJavaVM_t)(JavaVM **pvm, void **env, void *args);
 typedef jint (JNICALL *GetDefaultJavaVMInitArgs_t)(void *args);

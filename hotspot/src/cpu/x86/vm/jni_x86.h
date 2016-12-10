@@ -23,10 +23,10 @@
  * questions.
  */
 
-#ifndef _JAVASOFT_JNI_MD_H_
+#ifndef _JAVASOFT_JNI_MD_H_ // 为了.h文件不被重复include 配合文件最后一行#endif 可以参见c cpp基础知识回顾 1.1
 #define _JAVASOFT_JNI_MD_H_
 
-#if defined(SOLARIS) || defined(LINUX)
+#if defined(SOLARIS) || defined(LINUX) // ubuntu 中并没有定义LINUX宏 而是定义了linux 在编译时指定 flags.make:Platform_sysdefs = -DLINUX
 
 #if defined(__GNUC__) && (__GNUC__ > 4) || (__GNUC__ == 4) && (__GNUC_MINOR__ > 2)
   #define JNIEXPORT     __attribute__((visibility("default")))

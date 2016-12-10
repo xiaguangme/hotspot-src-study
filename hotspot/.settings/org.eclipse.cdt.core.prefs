@@ -25,3 +25,5 @@ environment/project/0.1632743367.1157579444/PATH/operation=replace
 environment/project/0.1632743367.1157579444/PATH/value=/usr/lib/lightdm/lightdm\:/home/simomme/002.tool/apache-ant-1.9.4/bin\:/usr/jdk1.6.0_45/bin\:/usr/lib\:/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/usr/games\:/home/simomme/002.tool/apache-ant-1.9.4\:/usr/lib/x86_64-linux-gnu\:/usr/lib/gcc/x86_64-linux-gnu/4.6
 environment/project/0.1632743367.1157579444/append=true
 environment/project/0.1632743367.1157579444/appendContributed=true
+environment/project/cdt.managedbuild.toolchain.gnu.base.638988482/append=true
+environment/project/cdt.managedbuild.toolchain.gnu.base.638988482/appendContributed=true

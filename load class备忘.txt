@@ -5,32 +5,70 @@ cp ../../../../simon_test/bin/HelloWord.class ./
 ### gdb调试
 cd ~/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/build/hotspot_debug/linux_amd64_compiler2/jvmg
 sh hotspot -gdb HelloWord
+
+从FileParser.cpp 入手分析 
 break classFileParser.cpp:2829
 
---
-(gdb) print name.print_value()
-Cannot resolve method Symbol::print_value to any overloaded instance
-
----
-
-
-(gdb) set overload-resolution off
 (gdb) p (name.print())
 Symbol: 'java/lang/Object' count 2$18 = void
+发现第一个加载的就是java/lang/Object
+
+用gdb的bt命令观察调用栈
+(gdb) bt
+#0  ClassFileParser::parseClassFile (this=0x7ffff7fe5370, name=0x7ffff004f068, class_loader=..., protection_domain=..., host_klass=..., 
+    cp_patches=0x0, parsed_name=..., verify=false, __the_thread__=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/classFileParser.cpp:2829
+#1  0x00007ffff6fe8572 in ClassFileParser::parseClassFile (this=0x7ffff7fe5370, name=0x7ffff004f068, class_loader=..., protection_domain=..., 
+    parsed_name=..., verify=false, __the_thread__=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/classFileParser.hpp:284
+#2  0x00007ffff6fe65b6 in ClassLoader::load_classfile (h_name=0x7ffff004f068, __the_thread__=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/classLoader.cpp:917
+#3  0x00007ffff7541ee6 in SystemDictionary::load_instance_class (class_name=0x7ffff004f068, class_loader=..., __the_thread__=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/systemDictionary.cpp:1359
+#4  0x00007ffff753fe6b in SystemDictionary::resolve_instance_class_or_null (name=0x7ffff004f068, class_loader=..., protection_domain=..., 
+    __the_thread__=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/systemDictionary.cpp:755
+#5  0x00007ffff753e835 in SystemDictionary::resolve_or_null (class_name=0x7ffff004f068, class_loader=..., protection_domain=..., 
+    __the_thread__=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/systemDictionary.cpp:203
+#6  0x00007ffff753e38d in SystemDictionary::resolve_or_fail (class_name=0x7ffff004f068, class_loader=..., protection_domain=..., 
+    throw_error=true, __the_thread__=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/systemDictionary.cpp:145
+#7  0x00007ffff753e6a9 in SystemDictionary::resolve_or_fail (class_name=0x7ffff004f068, throw_error=true, __the_thread__=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/systemDictionary.cpp:186
+#8  0x00007ffff7543595 in SystemDictionary::initialize_wk_klass (id=SystemDictionary::Object_klass_knum, init_opt=0, 
+    __the_thread__=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/systemDictionary.cpp:1915
+#9  0x00007ffff75436b8 in SystemDictionary::initialize_wk_klasses_until (limit_id=SystemDictionary::Cloneable_klass_knum, 
+    start_id=@0x7ffff7fe5964: SystemDictionary::Object_klass_knum, __the_thread__=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/systemDictionary.cpp:1931
+#10 0x00007ffff7546578 in SystemDictionary::initialize_wk_klasses_through (end_id=SystemDictionary::Class_klass_knum, 
+    start_id=@0x7ffff7fe5964: SystemDictionary::Object_klass_knum, __the_thread__=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/systemDictionary.hpp:421
+#11 0x00007ffff75437af in SystemDictionary::initialize_preloaded_classes (__the_thread__=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/systemDictionary.cpp:1954
+#12 0x00007ffff75434a8 in SystemDictionary::initialize (__the_thread__=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/systemDictionary.cpp:1886
+#13 0x00007ffff7590d71 in Universe::genesis (__the_thread__=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/memory/universe.cpp:348
+#14 0x00007ffff7592fb3 in universe2_init ()
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/memory/universe.cpp:1003
+---Type <return> to continue, or q <return> to quit---
+#15 0x00007ffff71ba205 in init_globals ()
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/runtime/init.cpp:109
+#16 0x00007ffff75763a6 in Threads::create_vm (args=0x7ffff7fe5dd0, canTryAgain=0x7ffff7fe5d9f)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/runtime/thread.cpp:3107
+#17 0x00007ffff7244e13 in JNI_CreateJavaVM (vm=0x7ffff7fe5e20, penv=0x7ffff7fe5e28, args=0x7ffff7fe5dd0)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/prims/jni.cpp:3356
+#18 0x0000000000404a93 in InitializeJVM (pvm=0x7ffff7fe5e20, penv=0x7ffff7fe5e28, ifn=0x7ffff7fe5e10)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/tools/launcher/java.c:1288
+#19 0x000000000040339e in JavaMain (_args=0x7fffffffbbe0)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/tools/launcher/java.c:423
+#20 0x00007ffff6744e9a in start_thread () from /lib/x86_64-linux-gnu/libpthread.so.0
+#21 0x00007ffff647231d in clone () from /lib/x86_64-linux-gnu/libc.so.6
 
 
-###遇到的问题1：
-用hotspot脚本调试jvm时出现
-source: not found
-ALT_JAVA_HOME未设置
-请参考： http://blog.csdn.net/mvpme82/article/details/7615454
-原因： ls -l `which sh` 提示/bin/sh -> dash
 
-改回方法： 
-命令行执行：sudo dpkg-reconfigure dash
-在界面中选择no
-
-再ls -l `which sh` 提示/bin/sh -> bash
 
 ##classloader
 
@@ -305,7 +343,49 @@ Breakpoint 3, ClassLoader::load_classfile (h_name=0x7ffff0182cc8, __the_thread__
     at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/prims/jvm.cpp:726
 
 
+从最初的调用栈可以看出 load clas发起于JVM_FindClassFromBootLoader 
+再往上追 发现是来自于java代码 jdk的ClassLoader java.lang.ClassLoader.findBootstrapClass(String)
+findBootstrapClass是一个native方法，实现写在ClassLoader.c里
 
+/*
+ * Returns NULL if class not found.
+ */
+JNIEXPORT jclass JNICALL
+Java_java_lang_ClassLoader_findBootstrapClass(JNIEnv *env, jobject loader,
+                                              jstring classname)
+{
+    char *clname;
+    jclass cls = 0;
+    char buf[128];
+
+    if (classname == NULL) {
+        return 0;
+    }
+
+    clname = getUTF(env, classname, buf, sizeof(buf));
+    if (clname == NULL) {
+        JNU_ThrowOutOfMemoryError(env, NULL);
+        return NULL;
+    }
+    VerifyFixClassname(clname);
+
+    if (!VerifyClassname(clname, JNI_TRUE)) {  /* expects slashed name */
+        goto done;
+    }
+
+    cls = JVM_FindClassFromBootLoader(env, clname);
+
+ done:
+    if (clname != buf) {
+        free(clname);
+    }
+
+    return cls;
+}
+
+java代码与c代码怎么对接的？
+下面就要看jni了。
+	
 
 
 
