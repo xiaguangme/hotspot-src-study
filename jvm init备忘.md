@@ -87,7 +87,229 @@ jni.cpp 3302行定义了JNI_CreateJavaVM
 分析jni.cpp 3302行定义的JNI_CreateJavaVM  
 TODO: Atomic::xchg函数作用  
 往下跟，切换至src/share/vm/runtime/thread.cpp:3012 Threads::create_vm方法创建vm  
-ostream_init()  
+create_vm 处理的逻辑  
+1. ostream_init()  
+2. process_sun_java_launcher_properties  
+3. os::init()  
+4. init_system_properties  
+5. JDK_Version_init  
+6. init_version_specific_system_properties  
+7. parse(args);  
+8. 是否需要在启动的时pause PauseAtStartup   
+9. 是否需要在启动时初始化libraries init_libraries_at_startup  
+10. 是否需要在启动时初始化agent init_agents_at_startup  
+11. ThreadLocalStorage::init()  
+12. vm_init_globals()  
+13. 创建JavaThread  
+14. 主线程处理相关细节 堆栈等  
+main_thread->record_stack_base_and_size();  
+  main_thread->initialize_thread_local_storage();  
+  main_thread->set_active_handles(JNIHandleBlock::allocate_block());  
+main_thread->create_stack_guard_pages();  
+15. 创建java级的同步子系统 ObjectMonitor::Initialize()  
+16. 初始化全局模块 init_globals();  
+17. main_thread->cache_global_variables(); 这个动作是在堆创建之后
+18. 维护线程锁  将当前主线程加入Threads维护  
+19. JvmtiExport::transition_pending_onload_raw_monitors();？？  
+20. Universe::heap()->prepare_for_verify();  
+    Universe::verify();  
+21. VMThread::create();// 不同于上面的JavaThread  、
+os::create_thread(vmthread, os::vm_thread)  
+MutexLocker ml(Notify_lock);  
+      os::start_thread(vmthread);  
+22. 进入虚拟机启动阶段  JvmtiExport::enter_start_phase();  
+23. 虚拟机启动后处理阶段 JvmtiExport::post_vm_start();  
+  1. 若需要初始化libraries create_vm_init_libraries();  
+  2. 是否需要初始化java.lang.String  initialize_class(vmSymbols::java_lang_String(), CHECK_0);  
+  3. 处理AggressiveOpts开关？？  
+  4. 处理UseStringCache开关  
+  5. 处理InitializeJavaLangSystem开发  
+  6. 处理InitializeJavaLangExceptionsErrors开关  
+  7. 初始化java_lang_Compiler initialize_class(vmSymbols::java_lang_Compiler(), CHECK_0);  
+  8. 重置vm 信息字段 reset_vm_info_property
+  9. quicken_jni_functions ??
+  10. 设置启动完成标志并记录  set_init_completed  Management::record_vm_init_completed()
+  11. java系统的classloader SystemDictionary::compute_java_system_loader(THREAD);
+  12. 未定义SERIALGC 的GC处理
+24. 进入live阶段 JvmtiExport::enter_live_phase();
+25. os::signal_init();
+26. 如果没有禁用attach机制，初始化attach listener，，，AttachListener::init();
+27. create_vm_init_libraries 23.1已经有了，又来一次？？
+28. 虚拟机初始化后处理阶段 JvmtiExport::post_vm_initialized();
+29. Chunk::start_chunk_pool_cleaner_task();？？
+30. 编译器初始化  CompileBroker::compilation_init(); 
+31. Management::initialize(THREAD);管理相关 初始化
+32. 就profile相关开关进行处理 jni相关检查开启
+33. BiasedLocking::init();？？
+34. 检查是否可以jvm初始化的钩子插入，若可以 调用hook
+35. 是否存在PeriodicTask::num_tasks()  若存在 则启动WatcherThread  WatcherThread::start();
+36. os::init_3();？？
+
+
+create_vm 处理的逻辑  
+1. ostream_init()  
+主要是是初始化tty(分配一个char*内存 type是C_HEAP)  用于输出日志等  
+2. process_sun_java_launcher_properties  
+看代码发现是处理-Dsun.java.launcher= 和-Dsun.java.launcher.pid=参数的  
+部分调试信息  
+```c
+Threads::create_vm (args=0x7ffff7fe5dd0, canTryAgain=0x7ffff7fe5d9f) at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/runtime/thread.cpp:3018
+3018	  Arguments::process_sun_java_launcher_properties(args);
+(gdb) s
+Arguments::process_sun_java_launcher_properties (args=0x7ffff7fe5dd0) at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/runtime/arguments.cpp:137
+137	  for (int index = 0; index < args->nOptions; index++) {
+(gdb) p args
+$6 = (JavaVMInitArgs *) 0x7ffff7fe5dd0
+(gdb) n
+138	    const JavaVMOption* option = args->options + index;
+(gdb) n
+141	    if (match_option(option, "-Dsun.java.launcher=", &tail)) {
+(gdb) p option
+$7 = (const JavaVMOption *) 0x60a710
+(gdb) p *option
+$8 = {optionString = 0x60a6b0 "-Djava.class.path=/usr/jdk1.6.0_45/jre/lib/rt.jar:.", extraInfo = 0x0}
+...
+(gdb) p *option
+$9 = {optionString = 0x60a760 "-Dsun.java.command=HelloWord", extraInfo = 0x0}
+...
+(gdb) p *option
+$10 = {optionString = 0x406bea "-Dsun.java.launcher=gamma", extraInfo = 0x0}
+...
+(gdb) p *option
+$12 = {optionString = 0x60a790 "-Dsun.java.launcher.pid=2812", extraInfo = 0x0}
+
+```  
+classpath 此时被转换成了-Djava.class.path=...HelloWord被转成了-Dsun.java.command=...  
+匹配到sun.java.launcher时， _sun_java_launcher = strdup(launcher);  这个strdup干什么的？？  
+匹配到sun.java.launcher.pid时， 将线程id记录到_sun_java_launcher_pid  
+
+3. os::init()  
+a. 设置_initial_pid  
+逻辑是：  
+如果java_launcher_pid 存在 则用之  否则 用getpid()函数获取  
+pid_t是什么类型 在哪定义的？系统的吗？ TODO  
+b. sysconf(_SC_CLK_TCK);  ？？ 同步时钟？？  
+c. 初始化随机数的种子 init_random(1234567);
+d. ThreadCritical初始化  这个类干嘛用的？？TODO  
+e. 设置页大小  
+f. 初始化系统信息  
+  设置CPU个数  
+  读取物理内存  
+g. Linux::_main_thread = pthread_self();  
+h. 初始化时钟 Linux::clock_init();  
+优先加载 librt.so.1，加载不到就加载 librt.so 初始化_clock_gettime函数  
+i. initial_time_count = os::elapsed_counter(); ???  
+j. pthread_mutex_init(&dl_mutex, NULL); ???  
+
+4. init_system_properties  
+向PropertyList_add添加字段元素
+java.vm.specification.name  Java Virtual Machine Specification  
+java.vm.version  VM_Version::vm_release()  
+java.vm.name  VM_Version::vm_name()  
+java.vm.info  VM_Version::vm_info_string()  
+java.ext.dirs java.endorsed.dirs sun.boot.library.path java.library.path java.home sun.boot.class.path  这几个都是设置的NULL
+java.class.path 设置的是空  
+
+查找jvm动态链接库路径
+```c
+(gdb) n
+389	        Arguments::set_dll_dir(dll_path);
+(gdb) p dll_path
+$32 = 0x7ffff0001908 "/usr/jdk1.6.0_45/jre/lib/amd64
+...
+405	        Arguments::set_java_home(home_path);
+(gdb) p home_path
+$35 = 0x7ffff00019a8 "/usr/jdk1.6.0_45/jre"
+...
+(gdb) p ld_library_path
+$49 = 0x7ffff0001dc8 "/home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/build/hotspot_debug/linux_amd64_compiler2/jvmg:/usr/jdk1.6.0_45/jre/lib/amd64:/usr/java/packages/lib/amd64:/usr/lib64:/lib64:/li"...
+...
+463	        Arguments::set_ext_dirs(buf);
+(gdb) p buf
+$50 = 0x7ffff0001fe8 "/usr/jdk1.6.0_45/jre/lib/ext:/usr/java/packages/lib/ext"
+...
+(gdb) n
+471	        Arguments::set_endorsed_dirs(buf);
+(gdb) p buf
+$51 = 0x7ffff00020c8 "/usr/jdk1.6.0_45/jre/lib/endorsed"
+
+```
+
+
+5. JDK_Version_init  
+os::native_java_library 加载java.dll/so 获取jdk的版本并检查  
+用工具查看java.dll 发现jdk中涉及的native方法有大部分定义在这里  
+
+6. init_version_specific_system_properties  
+java.vm.specification.vendor Sun Microsystems Inc.  
+java.vm.specification.version 1.0  
+
+```c
+201	      new SystemProperty("java.vm.specification.vendor",  spec_vendor, false));
+(gdb) p spec_vendor
+$55 = 0x7ffff7614c50 "Sun Microsystems Inc."
+```
+7. parse(args);  
+jvm path --> saved_jvm_path  
+-XX:Flags=  
+-XX:+PrintVMOptions // 打印-XX:参数  
+-XX:-PrintVMOptions  
+-XX:+IgnoreUnrecognizedVMOptions  
+-XX:-IgnoreUnrecognizedVMOptions  
+-XX:+PrintFlagsInitial  
+-XX:+PrintFlagsWithComments  
+
+
+
+8. 是否需要在启动的时pause PauseAtStartup   
+9. 是否需要在启动时初始化libraries init_libraries_at_startup  
+10. 是否需要在启动时初始化agent init_agents_at_startup  
+11. ThreadLocalStorage::init()  
+12. vm_init_globals()  
+13. 创建JavaThread  
+14. 主线程处理相关细节 堆栈等  
+main_thread->record_stack_base_and_size();  
+  main_thread->initialize_thread_local_storage();  
+  main_thread->set_active_handles(JNIHandleBlock::allocate_block());  
+main_thread->create_stack_guard_pages();  
+15. 创建java级的同步子系统 ObjectMonitor::Initialize()  
+16. 初始化全局模块 init_globals();  
+17. main_thread->cache_global_variables(); 这个动作是在堆创建之后
+18. 维护线程锁  将当前主线程加入Threads维护  
+19. JvmtiExport::transition_pending_onload_raw_monitors();？？  
+20. Universe::heap()->prepare_for_verify();  
+    Universe::verify();  
+21. VMThread::create();// 不同于上面的JavaThread  、
+os::create_thread(vmthread, os::vm_thread)  
+MutexLocker ml(Notify_lock);  
+      os::start_thread(vmthread);  
+22. 进入虚拟机启动阶段  JvmtiExport::enter_start_phase();  
+23. 虚拟机启动后处理阶段 JvmtiExport::post_vm_start();  
+  1. 若需要初始化libraries create_vm_init_libraries();  
+  2. 是否需要初始化java.lang.String  initialize_class(vmSymbols::java_lang_String(), CHECK_0);  
+  3. 处理AggressiveOpts开关？？  
+  4. 处理UseStringCache开关  
+  5. 处理InitializeJavaLangSystem开发  
+  6. 处理InitializeJavaLangExceptionsErrors开关  
+  7. 初始化java_lang_Compiler initialize_class(vmSymbols::java_lang_Compiler(), CHECK_0);  
+  8. 重置vm 信息字段 reset_vm_info_property
+  9. quicken_jni_functions ??
+  10. 设置启动完成标志并记录  set_init_completed  Management::record_vm_init_completed()
+  11. java系统的classloader SystemDictionary::compute_java_system_loader(THREAD);
+  12. 未定义SERIALGC 的GC处理
+24. 进入live阶段 JvmtiExport::enter_live_phase();
+25. os::signal_init();
+26. 如果没有禁用attach机制，初始化attach listener，，，AttachListener::init();
+27. create_vm_init_libraries 23.1已经有了，又来一次？？
+28. 虚拟机初始化后处理阶段 JvmtiExport::post_vm_initialized();
+29. Chunk::start_chunk_pool_cleaner_task();？？
+30. 编译器初始化  CompileBroker::compilation_init(); 
+31. Management::initialize(THREAD);管理相关 初始化
+32. 就profile相关开关进行处理 jni相关检查开启
+33. BiasedLocking::init();？？
+34. 检查是否可以jvm初始化的钩子插入，若可以 调用hook
+35. 是否存在PeriodicTask::num_tasks()  若存在 则启动WatcherThread  WatcherThread::start();
+36. os::init_3();？？
 
 
 
