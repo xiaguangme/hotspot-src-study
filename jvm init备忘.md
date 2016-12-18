@@ -210,7 +210,7 @@ java.vm.info  VM_Version::vm_info_string()
 java.ext.dirs java.endorsed.dirs sun.boot.library.path java.library.path java.home sun.boot.class.path  这几个都是设置的NULL
 java.class.path 设置的是空  
 
-查找jvm动态链接库路径
+查找jvm动态链接库路径  
 ```c
 (gdb) n
 389	        Arguments::set_dll_dir(dll_path);
@@ -262,18 +262,340 @@ jvm path --> saved_jvm_path
 
 
 8. 是否需要在启动的时pause PauseAtStartup   
+PauseAtStartup 标志什么时候赋值？？ TODO
+默认情况下是false
+
+补 os::init_2();  
 9. 是否需要在启动时初始化libraries init_libraries_at_startup  
+convert_vm_init_libraries_to_agents();  
+
 10. 是否需要在启动时初始化agent init_agents_at_startup  
+create_vm_init_agents  
+标志虚拟机进入JVMTI_PHASE_ONLOAD阶段  
+迭代Arguments::agents()  agents方法返回_agentList，其类型是AgentLibraryList，是个链表   
+先有由AgentLibrary查找并load 最后返回OnLoadEntry_t， 这个方法的实现是这个步骤的主要逻辑的体现。   
+待准备用例调试。**TODO**  
+
+
+_agentList在哪里处理准备的  
+  arguments.hpp  add_init_agent  
+  arguments.hpp  add_loaded_agent  
+  arguments.hpp  convert_library_to_agent  
+   
+add_init_agent 是被Arguments::parse_each_vm_init_arg 调用  
+用于处理  
+-javaagent:  
+-agentlib:  
+-agentpath:  
+参数，  
+javaagent 对应AgentLibrary的name被设置为"instrument"  
+其余两个参数 对应AgentLibrary的name设置值来自于参数选项配置值  
+
+add_loaded_agent 是被jvmtiExport.cpp的load_agent_library  
+  attachListener.cpp AttachOperationFunctionInfo
+
+
 11. ThreadLocalStorage::init()  
+
+
 12. vm_init_globals()  
+1. check_ThreadShadow TODO...  
+需要弄明白byte_offset_of函数  
+
+2. basic_types_init  
+除了java的8种基本类型外 还有  
+junit intx jobject u1 u2 u4   
+intx的解释，globalDefinitions.hpp 201行：   
+// intx and uintx are the 'extended' int and 'extended' unsigned int types;  
+// they are 32bit wide on a 32-bit platform, and 64bit wide on a 64bit platform.  
+jobject 是指向_jobject的指针  jni.h  
+```c
+typedef jubyte  u1;
+typedef jushort u2;
+typedef juint   u4;
+
+typedef uint8_t  jubyte;
+typedef uint16_t jushort;
+typedef uint32_t juint;
+
+typedef unsigned char		uint8_t;
+typedef unsigned short int	uint16_t;
+#ifndef __uint32_t_defined
+typedef unsigned int		uint32_t;
+```
+但是BasicType又做了如下定义  
+```c
+enum BasicType {
+  T_BOOLEAN  =  4,
+  T_CHAR     =  5,
+  T_FLOAT    =  6,
+  T_DOUBLE   =  7,
+  T_BYTE     =  8,
+  T_SHORT    =  9,
+  T_INT      = 10,
+  T_LONG     = 11,
+  T_OBJECT   = 12,
+  T_ARRAY    = 13,
+  T_VOID     = 14,
+  T_ADDRESS  = 15,
+  T_NARROWOOP= 16,
+  T_CONFLICT = 17, // for stack value type with conflicting contents
+  T_ILLEGAL  = 99
+};
+```
+
+先检查每种类型的size是否正确，再检查部分类型的范围是否正确  
+
+90-95 检查??  TODO  
+
+100-129 检查BasicType和type2field是否能对上  
+
+对junit和HeapWord的size做检查  必须是2的幂  
+
+JavaPriority1_To_OSPriority   这个是干什么用的?  
+
+对UseCompressedOops标志处理 Oops启用压缩  
+heapOopSize  LogBytesPerHeapOop  LogBitsPerHeapOop  BytesPerHeapOop  BitsPerHeapOop  
+
+3. eventlog_init  
+EventBuffer::init();  
+size  默认2000  
+buffer是 NEW_C_HEAP_ARRAY创建  
+
+4. mutex_init  
+tty_lock  
+CGC_lock  
+STS_init_lock  
+相关GC的lock  
+后面还有若干 具体参照 mutexLocker.cpp 169-270行  
+lock有两种  一是Mutex  另一是  Monitor  
+
+5. chunkpool_init  
+ChunkPool::initialize();  
+_large_pool  _medium_pool  _small_pool ??TODO  
+
+6. perfMemory_init  
+是否启用了UsePerfData标志  
+PerfMemory::initialize();  
+
+为性区域分配内存 32768  
+...   
+
+
 13. 创建JavaThread  
+主要是分配一个Thread类型的指针  
+```c
+((Thread*) aligned_addr)->_real_malloc_address = real_malloc_addr
+```
+设置主线程状态：  
+_thread_in_vm // running in VM  
+
+
+
 14. 主线程处理相关细节 堆栈等  
+```c
 main_thread->record_stack_base_and_size();  
-  main_thread->initialize_thread_local_storage();  
-  main_thread->set_active_handles(JNIHandleBlock::allocate_block());  
+main_thread->initialize_thread_local_storage();  
+main_thread->set_active_handles(JNIHandleBlock::allocate_block());  
 main_thread->create_stack_guard_pages();  
+```
+
+1. main_thread->record_stack_base_and_size()  
+关键靠os_linux_x86.cpp  current_stack_region处理   
+pthread_getattr_np  
+pthread_self  函数 [http://blog.csdn.net/xsckernel/article/details/8543377]   
+pthread_getattr_np//获取线程属性。常用形式：pthread_getattr_np(pthread_self(),&attr1);  
+```c
+int rslt = pthread_getattr_np(pthread_self(), &attr);
+```
+获取当前线程的属性放置在attr中  
+pthread_attr_getstack 获取线程的栈地址 已经栈大小 [http://www.educity.cn/linux/1241371.html]  
+```c
+pthread_attr_getstack(&attr, (void **)bottom, size) != 0
+```
+最后用pthread_attr_destroy函数  destory &attr，至此完成了static void current_stack_region(address * bottom, size_t * size) 函数入参的赋值  
+完成了stack的base address和size的设置  
+
+2. main_thread->initialize_thread_local_storage()  
+将thread的index 与当前的thread映射  
+下面是用到的系统的函数的细节  
+index靠pthread_key_create创建  pthread_key_create 也是系统函数 配合上面的系统函数使用  主要作用是实现ThreadLocal  
+[http://blog.csdn.net/lmh12506/article/details/8452700]  
+pthread_setspecific系统函数 [http://blog.csdn.net/lwfcgz/article/details/37570667]  
+pthread_getpecific和pthread_setspecific实现同一个线程中不同函数间共享数据的一种很好的方式  
+
+3. main_thread->set_active_handles(JNIHandleBlock::allocate_block());  
+JNIHandleBlock::allocate_block() 创建一个JNIHandleBlock指针  
+直接 new JNIHandleBlock  
+```c
+class JNIHandleBlock : public CHeapObj
+```
+继承自CHeapObj   new操作符号重载  也就是为JNIHandleBlock分配内存  
+分配成功后为main_thread 设置set_active_handles
+
+4. main_thread->create_stack_guard_pages();  
+判断OS是否具备stack的page保护机制，如果没有就不结束了  
+ubuntu有  
+最终本质上通过mmap实现  两个关键参数 一个是地址  一个是size  
+部分调试信息如下：
+```c
+Threads::create_vm (args=0x7ffff7fe5dd0, canTryAgain=0x7ffff7fe5d9f)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/runtime/thread.cpp:3091
+3091	  if (!main_thread->set_as_starting_thread()) {
+(gdb) n
+3101	  main_thread->create_stack_guard_pages();
+(gdb) s
+JavaThread::create_stack_guard_pages (this=0x7ffff0028800)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/runtime/thread.cpp:2258
+2258	  if (! os::uses_stack_guard_pages() || _stack_guard_state != stack_guard_unused) return;
+(gdb) p os::uses_stack_guard_pages() 
+Couldn't find method os::uses_stack_guard_pages
+(gdb) n
+2259	  address low_addr = stack_base() - stack_size();
+(gdb) p os::uses_stack_guard_pages() 
+$10 = true
+(gdb) n
+2260	  size_t len = (StackYellowPages + StackRedPages) * os::vm_page_size();
+(gdb) n
+2262	  int allocate = os::allocate_stack_guard_pages();
+(gdb) p len
+$11 = 12288
+(gdb) p StackYellowPages
+$12 = 2
+(gdb) p StackRedPages
+$13 = 1
+(gdb) p os::vm_page_size()
+$14 = 4096
+(gdb) n
+2265	  if (allocate && !os::create_stack_guard_pages((char *) low_addr, len)) {
+(gdb) p allocate
+$15 = 1
+(gdb) s
+os::create_stack_guard_pages (addr=0x7ffff7ee6000 "", size=12288)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/os/linux/vm/os_linux.cpp:2716
+2716	  bool chk_bounds = NOT_DEBUG(os::Linux::is_initial_thread()) DEBUG_ONLY(true);
+(gdb) n
+2717	  if (chk_bounds && get_stack_bounds(&stack_extent, &stack_base)) {
+(gdb) n
+2724	  return os::commit_memory(addr, size);
+(gdb) p addr
+$16 = 0x7ffff7ee6000 ""
+(gdb) p size
+$17 = 12288
+(gdb) s
+os::commit_memory (addr=0x7ffff7ee6000 "", size=12288, exec=false)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/os/linux/vm/os_linux.cpp:2462
+2462	  int prot = exec ? PROT_READ|PROT_WRITE|PROT_EXEC : PROT_READ|PROT_WRITE;
+(gdb) n
+2464	                                   MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0);
+(gdb) p prot
+$18 = 3
+(gdb) n
+2465	  return res != (uintptr_t) MAP_FAILED;
+(gdb) n
+2466	}
+(gdb) n
+os::create_stack_guard_pages (addr=0x7ffff7ee6000 "", size=12288)
+    at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/os/linux/vm/os_linux.cpp:2725
+2725	}
+
+```
+
 15. 创建java级的同步子系统 ObjectMonitor::Initialize()  
+设置InitializationCompleted 标志位为1  
+
 16. 初始化全局模块 init_globals();  
+启了一大堆东西 直接贴代码吧  
+```c
+
+jint init_globals() {
+  HandleMark hm;
+  management_init();
+  bytecodes_init();
+  classLoader_init();
+  codeCache_init();
+  VM_Version_init();
+  stubRoutines_init1();
+  jint status = universe_init();  // dependent on codeCache_init and stubRoutines_init
+  if (status != JNI_OK)
+    return status;
+
+  interpreter_init();  // before any methods loaded
+  invocationCounter_init();  // before any methods loaded
+  marksweep_init();
+  accessFlags_init();
+  templateTable_init();
+  InterfaceSupport_init();
+  SharedRuntime::generate_stubs();
+  universe2_init();  // dependent on codeCache_init and stubRoutines_init
+  referenceProcessor_init();
+  jni_handles_init();
+#ifndef VM_STRUCTS_KERNEL
+  vmStructs_init();
+#endif // VM_STRUCTS_KERNEL
+
+  vtableStubs_init();
+  InlineCacheBuffer_init();
+  compilerOracle_init();
+  compilationPolicy_init();
+  VMRegImpl::set_regName();
+
+  if (!universe_post_init()) {
+    return JNI_ERR;
+  }
+  javaClasses_init();  // must happen after vtable initialization
+  stubRoutines_init2(); // note: StubRoutines need 2-phase init
+
+  // Although we'd like to, we can't easily do a heap verify
+  // here because the main thread isn't yet a JavaThread, so
+  // its TLAB may not be made parseable from the usual interfaces.
+  if (VerifyBeforeGC && !UseTLAB &&
+      Universe::heap()->total_collections() >= VerifyGCStartAt) {
+    Universe::heap()->prepare_for_verify();
+    Universe::verify();   // make sure we're starting with a clean slate
+  }
+
+
+```
+1. management_init()  
+```c
+Management::init();
+ThreadService::init();
+RuntimeService::init();
+ClassLoadingService::init();
+```
+主要是设置一系列的管理用的变量和计数器 比如thread的“started” “live”...  
+_classes_loaded_count 计数器等等  
+
+2. bytecodes_init()  
+Bytecodes::initialize();  
+初始化JVM规范定义的字节码指令  
+
+3. classLoader_init()  
+ClassLoader::initialize()  
+同样是先创建一堆用于性能监控的计数器与变量 比如parse class的时间，link class的时间等等  
+
+load_zip_library  
+到/usr/jdk1.6.0_45/jre/lib/amd64/下找libzip.so并加载  
+windows下是靠zip.dll  
+
+setup_bootstrap_search_path  
+```c
+Arguments::get_sysclasspath()
+(gdb) p sys_class_path  
+$27 = 0x7ffff002edf8 "/usr/jdk1.6.0_45/jre/lib/resources.jar:/usr/jdk1.6.0_45/jre/lib/rt.jar:/usr/jdk1.6.0_45/jre/lib/sunrsasign.jar:/usr/jdk1.6.0_45/jre/lib/jsse.jar:/usr/jdk1.6.0_45/jre/lib/jce.jar:/usr/jdk1.6.0_45/jre/l"
+```
+如果TraceClassLoading 并开启了调试 此时会打印load的信息  
+最后会把这些classpath信息维护到ClassLoader的lastEnrty链表上  
+
+处理LazyBootClassLoader  
+LazyBootClassLoader 这个标识干什么的  
+读取/usr/jdk1.6.0_45/jre/lib/meta-index里面的包名  
+注意这个配置文件的编写  #!@ 开头  
+把需要延迟加载的放到LazyClassPathEntry TODO 阅读更多的关于延迟加载的信息  
+
+4. codeCache_init();  
+
 17. main_thread->cache_global_variables(); 这个动作是在堆创建之后
 18. 维护线程锁  将当前主线程加入Threads维护  
 19. JvmtiExport::transition_pending_onload_raw_monitors();？？  
