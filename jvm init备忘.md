@@ -595,6 +595,10 @@ LazyBootClassLoader 这个标识干什么的
 把需要延迟加载的放到LazyClassPathEntry TODO 阅读更多的关于延迟加载的信息  
 
 4. codeCache_init();  
+......
+
+
+
 
 17. main_thread->cache_global_variables(); 这个动作是在堆创建之后
 18. 维护线程锁  将当前主线程加入Threads维护  

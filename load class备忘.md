@@ -1,19 +1,22 @@
 ##2. 阅读
-cd ~/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/build/hotspot_debug/linux_amd64_compiler2/jvmg
-cp ../../../../simon_test/bin/HelloWord.class ./
+cd ~/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/build/hotspot_debug/linux_amd64_compiler2/jvmg  
+cp ../../../../simon_test/bin/HelloWord.class ./  
 
 ### gdb调试
-cd ~/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/build/hotspot_debug/linux_amd64_compiler2/jvmg
-sh hotspot -gdb HelloWord
+cd ~/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/build/hotspot_debug/linux_amd64_compiler2/jvmg  
+sh hotspot -gdb HelloWord  
 
-从FileParser.cpp 入手分析 
-break classFileParser.cpp:2829
+从FileParser.cpp 入手分析   
+```c
+break classFileParser.cpp:2829  
 
 (gdb) p (name.print())
-Symbol: 'java/lang/Object' count 2$18 = void
-发现第一个加载的就是java/lang/Object
+Symbol: 'java/lang/Object' count 2$18 = void  
+```
+发现第一个加载的就是java/lang/Object  
 
-用gdb的bt命令观察调用栈
+用gdb的bt命令观察调用栈  
+```c
 (gdb) bt
 #0  ClassFileParser::parseClassFile (this=0x7ffff7fe5370, name=0x7ffff004f068, class_loader=..., protection_domain=..., host_klass=..., 
     cp_patches=0x0, parsed_name=..., verify=false, __the_thread__=0x7ffff0028800)
@@ -67,27 +70,32 @@ Symbol: 'java/lang/Object' count 2$18 = void
 #20 0x00007ffff6744e9a in start_thread () from /lib/x86_64-linux-gnu/libpthread.so.0
 #21 0x00007ffff647231d in clone () from /lib/x86_64-linux-gnu/libc.so.6
 
+```
 
 
 
 ##classloader
 
-jni.cpp 386-387行  寻找class
-JNI_ENTRY(jclass, jni_FindClass(JNIEnv *env, const char *name))
+jni.cpp 386-387行  寻找class  
+```c
+JNI_ENTRY(jclass, jni_FindClass(JNIEnv *env, const char *name))  
   JNIWrapper("FindClass");
+```
 
 
+instanceKlassHandle  
 
-instanceKlassHandle
-通过宏 DEF_KLASS_HANDLE(instanceKlass         , oop_is_instance_slow ) 定义出来的类
-继承自 KlassHandle 代码如下
-#define DEF_KLASS_HANDLE(type, is_a)             \
-  class type##Handle : public KlassHandle { 
+通过宏 DEF_KLASS_HANDLE(instanceKlass         , oop_is_instance_slow ) 定义出来的类  
+继承自 KlassHandle 代码如下  
+```c
+#define DEF_KLASS_HANDLE(type, is_a)             \  
+  class type##Handle : public KlassHandle {  
+```
+KlassHandle又继承了Handle  
+class KlassHandle: public Handle  
 
-KlassHandle又继承了Handle
-class KlassHandle: public Handle
-
-在
+在  
+```c
   instanceKlassHandle k (THREAD, thread->security_get_caller_class(0));
   if (k.not_null()) {
     loader = Handle(THREAD, k->class_loader());
@@ -114,18 +122,19 @@ class KlassHandle: public Handle
   } else {
     // We call ClassLoader.getSystemClassLoader to obtain the system class loader.
     loader = Handle(THREAD, SystemDictionary::java_system_loader());
-  
-在jni.cpp 386行findclass这段处理中
-k.not_null() 逻辑简单 就是 instanceKlassHandle中的_handle是否为null
-调试逻辑：
+```  
+在jni.cpp 386行findclass这段处理中  
+k.not_null() 逻辑简单 就是 instanceKlassHandle中的_handle是否为null  
+调试逻辑：  
+```c
 Handle::not_null (this=0x7ffff7fe4f40)
     at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/runtime/handles.hpp:102
 102	  bool    not_null() const                       { return _handle != NULL; }
 (gdb) p _handle
 $6 = (oop *) 0x7ffff00299d8
-
-
+```
 代码如下：
+```c
 class Handle VALUE_OBJ_CLASS_SPEC {
  private:
   oop* _handle;
@@ -168,15 +177,16 @@ class Handle VALUE_OBJ_CLASS_SPEC {
   oop* raw_value()                               { return _handle; }
   static oop raw_resolve(oop *handle)            { return handle == NULL ? (oop)NULL : *handle; }
 };
+```
 
+VALUE_OBJ_CLASS_SPEC是个宏 其实就是定义Handle的父类  
 
-VALUE_OBJ_CLASS_SPEC是个宏 其实就是定义Handle的父类
+\#define VALUE_OBJ_CLASS_SPEC    : public _ValueObj  
+那么这个_handle是oop类型  
 
-#define VALUE_OBJ_CLASS_SPEC    : public _ValueObj
-那么这个_handle是oop类型
-
-oop又是啥
-oopsHierarchy.hpp中有定义：
+oop又是啥  
+oopsHierarchy.hpp中有定义：  
+```c
 typedef class oopDesc*                            oop;
 
 instanceKlassHandle  可以用name方法查看是哪个class
@@ -185,15 +195,16 @@ k->name()
 (gdb) p k->name()->print()
 Symbol: 'java/lang/System' count 20$9 = void
 
+```
+
+find_class_from_class_loader  
+jvm.cpp:3978  
 
 
-find_class_from_class_loader
-jvm.cpp:3978
 
-
-
-第一个加载的是java.lang.Object
-看调试信息：
+第一个加载的是java.lang.Object  
+看调试信息：  
+```c
 (gdb) break systemDictionary.cpp:145
 Breakpoint 2 at 0x7ffff753e345: file /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/systemDictionary.cpp, line 145.
 (gdb) c
@@ -247,10 +258,6 @@ Symbol: 'java/lang/Object' count 1$1 = void
 #16 0x0000000000000000 in ?? ()
 (gdb) 
 
-
-
-
-
 (gdb) p class_anme
 No symbol "class_anme" in current context.
 (gdb) p class_name
@@ -260,13 +267,14 @@ Symbol: 'java/lang/Object' count 1$4 = void
 (gdb) 
 Symbol: 'java/lang/Object' count 1$5 = void
 (gdb) 
+```
+FieldType::is_obj(class_name)  是false  这方法什么意思  
 
-FieldType::is_obj(class_name)  是false  这方法什么意思
 
-
-klassOop SystemDictionary::resolve_instance_class_or_null
-加载类的细节在此 比较复杂 
-755 行
+klassOop SystemDictionary::resolve_instance_class_or_null  
+加载类的细节在此 比较复杂   
+755 行  
+```c
     if (!class_has_been_loaded) {
 
       // Do actual loading
@@ -316,12 +324,13 @@ $2 = {<KlassHandle> = {<Handle> = {_handle = 0x7ffff0029b18}, <No data fields>},
 (gdb) p k->name()->print()
 Symbol: 'java/lang/Object' count 4$4 = void
 (gdb) 
+```
 
+回去接着调  
+instanceKlassHandle ClassLoader::load_classfile  
 
-回去接着调
-instanceKlassHandle ClassLoader::load_classfile
-
-在加载HelloWord时的加载堆栈：
+在加载HelloWord时的加载堆栈：  
+```c
 Symbol: 'HelloWord' count 4
 Breakpoint 3, ClassLoader::load_classfile (h_name=0x7ffff0182cc8, __the_thread__=0x7ffff0028800)
     at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/classLoader.cpp:877
@@ -341,12 +350,12 @@ Breakpoint 3, ClassLoader::load_classfile (h_name=0x7ffff0182cc8, __the_thread__
     at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/classfile/systemDictionary.cpp:208
 #5  0x00007ffff72718ba in JVM_FindClassFromBootLoader (env=0x7ffff0028a00, name=0x7ffff7fe50e0 "HelloWord")
     at /home/simomme/01.co/01.opensource/04.openjdk7/hotspot-src-study/hotspot/src/share/vm/prims/jvm.cpp:726
+```
 
-
-从最初的调用栈可以看出 load clas发起于JVM_FindClassFromBootLoader 
-再往上追 发现是来自于java代码 jdk的ClassLoader java.lang.ClassLoader.findBootstrapClass(String)
-findBootstrapClass是一个native方法，实现写在ClassLoader.c里
-
+从最初的调用栈可以看出 load clas发起于JVM_FindClassFromBootLoader   
+再往上追 发现是来自于java代码 jdk的ClassLoader java.lang.ClassLoader.findBootstrapClass(String)  
+findBootstrapClass是一个native方法，实现写在ClassLoader.c里  
+```c
 /*
  * Returns NULL if class not found.
  */
@@ -382,9 +391,9 @@ Java_java_lang_ClassLoader_findBootstrapClass(JNIEnv *env, jobject loader,
 
     return cls;
 }
-
-java代码与c代码怎么对接的？
-下面就要看jni了。
+```
+java代码与c代码怎么对接的？  
+下面就要看jni了。  
 	
 
 
