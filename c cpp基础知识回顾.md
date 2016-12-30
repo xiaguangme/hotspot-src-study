@@ -42,7 +42,53 @@ cpp -dM /dev/null
 
 ## 1.4 \#defined带参数的宏
 可以参考文章 [C语言宏的特殊用法和几个坑](http://hbprotoss.github.io/posts/cyu-yan-hong-de-te-shu-yong-fa-he-ji-ge-keng.html) 写的非常好  
+> **宏名之后带括号的**宏被认为是宏函数。用法和普通函数一样，只不过在预处理阶段，宏函数会被展开。优点是没有普通函数保存寄存器和参数传递的开销，展开后的代码有利于CPU cache的利用和指令预测，速度快。缺点是可执行代码体积大。
 
-
+```c
+#define min(X, Y)  ((X) < (Y) ? (X) : (Y))
+// y = min(1, 2);会被扩展成y = ((1) < (2) ? (1) : (2));
+```
 
 ## 1.5 \#defined \# 与 \#\#特殊符号
+>在宏体中，如果宏参数前加个#，那么在宏体扩展的时候，宏参数会被扩展成字符串的形式。如：
+
+```c
+#define WARN_IF(EXP) \
+     do { if (EXP) \
+             fprintf (stderr, "Warning: " #EXP "\n"); } \
+     while (0)
+
+//WARN_IF (x == 0);会被扩展成：
+
+do { if (x == 0)
+    fprintf (stderr, "Warning: " "x == 0" "\n"); }
+while (0);
+
+```
+**说白了 就是会在外面加引号**
+
+>在宏体中，如果宏体所在标示符中有##，那么在宏体扩展的时候，宏参数会被直接替换到标示符中
+
+就是连接，
+```c
+#define COMMAND(NAME)  { #NAME, NAME ## _command }
+
+struct command commands[] =
+{
+    COMMAND (quit),
+    COMMAND (help),
+    ...
+};
+
+// 替换成
+struct command commands[] =
+{
+    { "quit", quit_command },
+    { "help", help_command },
+    ...
+};
+
+```
+**\#\# 前后的字符会被连接  如果前或者后有宏参数则会被替换后连接**  
+
+
