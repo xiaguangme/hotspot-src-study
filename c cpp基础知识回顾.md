@@ -91,4 +91,38 @@ struct command commands[] =
 ```
 **\#\# 前后的字符会被连接  如果前或者后有宏参数则会被替换后连接**  
 
+## 1.6 \#define与template混用
+参见 test_cpp/src/test_template_word.cpp  
+此处template就一普通的宏参数 跟关键字没啥关系  
+```c
+#include <iostream>
+using namespace std;
+
+
+// template 虽然是关键字 也可以当作宏的参数 此处跟关键字没啥关系 systemDictionary.hpp 94行 均采用此种写法
+#define WK_KLASSES_DO(template)                  \
+	template(1, 2, 3);                            \
+
+
+int a(int a1, int a2, int a3)
+{
+	cout << a1 << endl;
+	cout << a2 << endl;
+	cout << a3 << endl;
+	return 0;
+}
+
+
+int test0401(){
+	WK_KLASSES_DO(a)
+    return 0;
+}
+
+
+int main(){
+	return test0401();
+}
+
+```
+
 
