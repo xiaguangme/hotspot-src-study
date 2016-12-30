@@ -203,6 +203,7 @@ jvm.cpp:3978
 
 
 第一个加载的是java.lang.Object  
+Threads::create_vm-->init.cpp  init_globals-->SystemDictionary.initialize-->initialize_preloaded_classes  
 看调试信息：  
 ```c
 (gdb) break systemDictionary.cpp:145
@@ -268,6 +269,7 @@ Symbol: 'java/lang/Object' count 1$4 = void
 Symbol: 'java/lang/Object' count 1$5 = void
 (gdb) 
 ```
+第一个加载的类是 java/lang/Object
 FieldType::is_obj(class_name)  是false  这方法什么意思  
 
 

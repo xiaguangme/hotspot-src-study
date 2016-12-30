@@ -597,7 +597,8 @@ LazyBootClassLoader 这个标识干什么的
 4. codeCache_init();  
 ......
 
-
+universe2_init();  // universe  宇宙 无尽？？？
+此处会加载java.lang.Object  
 
 
 17. main_thread->cache_global_variables(); 这个动作是在堆创建之后

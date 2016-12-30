@@ -40,4 +40,9 @@ hotspot/src/share/vm/adlc/adlc.hpp:#ifdef LINUX
 查看linux系统 预定义宏  
 cpp -dM /dev/null  
 
+## 1.4 \#defined带参数的宏
+可以参考文章 [C语言宏的特殊用法和几个坑](http://hbprotoss.github.io/posts/cyu-yan-hong-de-te-shu-yong-fa-he-ji-ge-keng.html) 写的非常好  
 
+
+
+## 1.5 \#defined \# 与 \#\#特殊符号
