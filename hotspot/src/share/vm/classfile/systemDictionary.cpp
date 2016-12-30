@@ -1902,7 +1902,7 @@ bool SystemDictionary::initialize_wk_klass(WKID id, int init_opt, TRAPS) {
   int  info = wk_init_info[id - FIRST_WKID];
   int  sid  = (info >> CEIL_LG_OPTION_LIMIT);
   Symbol* symbol = vmSymbols::symbol_at((vmSymbols::SID)sid);
-  klassOop*    klassp = &_well_known_klasses[id];
+  klassOop*    klassp = &_well_known_klasses[id]; // 先尝试从_well_known_klasses获取 如果没有 则会在1915行load
   bool must_load = (init_opt < SystemDictionary::Opt);
   bool try_load  = true;
   if (init_opt == SystemDictionary::Opt_Kernel) {
