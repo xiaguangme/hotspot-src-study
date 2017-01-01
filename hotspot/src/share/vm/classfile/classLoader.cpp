@@ -873,7 +873,7 @@ objArrayOop ClassLoader::get_system_packages(TRAPS) {
 
 instanceKlassHandle ClassLoader::load_classfile(Symbol* h_name, TRAPS) {
   ResourceMark rm(THREAD);
-  tty->print_cr("load class:--");h_name->print();EventMark m("loading class " INTPTR_FORMAT, (address)h_name);//增加调试信息 观察加载进来的类
+  tty->print_cr("load class:--");h_name->print();EventMark m("loading class " INTPTR_FORMAT, (address)h_name);//增加调试信息 观察加载进来的类  h_name 是用斜线连接的全路径的就啊java类名
   ThreadProfilerMark tpm(ThreadProfilerMark::classLoaderRegion);
 
   stringStream st;

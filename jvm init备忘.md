@@ -597,7 +597,9 @@ LazyBootClassLoader 这个标识干什么的
 4. codeCache_init();  
 ......
 
-universe2_init();  // universe  宇宙 无尽？？？
+universe2_init();  // universe  宇宙 无尽？？？ 
+此时也会初始化vmSymbols.cpp的 vm_symbol_bodies 里面存放了java类的全路径
+参见 《systemDictionary分析.md》 2.加载java.lang.Object过程解析  3步骤
 此处会加载java.lang.Object  
 
 
